@@ -1,0 +1,58 @@
+# Node / deps
+node_modules/
+*.log
+
+# Expo
+.expo/
+.expo-shared/
+expo-env.d.ts
+dist/
+web-build/
+
+# Caches / build artifacts
+.cache/
+.turbo/
+**/build/
+.metro-health-check*
+coverage/
+.jest/
+.eslintcache
+
+# Native (managed workflow)
+# Remove these if you prebuild AND commit native changes
+/ios
+/android
+
+# Android Studio / Gradle
+.gradle/
+*.iml
+.idea/
+
+# iOS signing / Android keystore / mobile secrets
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# Local env (commit a .env.example instead)
+.env
+.env.*
+.env*.local
+
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# Kotlin / misc
+.kotlin/
+*.orig.*
+
+# TypeScript
+*.tsbuildinfo
+
+# Project-specific
+app-example
