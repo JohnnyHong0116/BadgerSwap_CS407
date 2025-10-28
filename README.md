@@ -97,7 +97,7 @@ git push origin main
 
 | **Role ID** | **Member Name** | **Branch Name** | **Main Responsibility** |
 |--------------|----------------|-----------------|--------------------------|
-| **A** | [Name 1] | `member-a` | Authentication & Profile |
+| **A** | Julie Chen | `julie` | Authentication & Profile |
 | **B** | Chenchen Zheng | `chenchen` | Marketplace Core |
 | **C** | Johnny Hong | `johnny` | Item Details & Favorites |
 | **D** | [Name 4] | `member-d` | Messaging & Notifications |
