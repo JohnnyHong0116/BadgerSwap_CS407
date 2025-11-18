@@ -290,7 +290,13 @@ export default function ItemDetailScreen() {
                   });
 
                   // Go to chat screen
-                  router.push(`/chat/${threadId}`);
+                  router.push({
+                    pathname: `/chat/${threadId}`,
+                    params: {
+                      partnerName: resolvedSellerName,
+                      itemName: item.title
+                    }
+                  });
                 } catch (err: any) {
                   console.error('Failed to start chat:', err);
                   Alert.alert('Error', err?.message ?? 'Unable to open chat.');

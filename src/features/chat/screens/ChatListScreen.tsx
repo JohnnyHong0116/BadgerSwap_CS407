@@ -62,10 +62,10 @@ export default function ChatListScreen() {
           style={styles.conversationItem}
           onPress={() =>
               router.push({
-                pathname: '/chat',
+                pathname: `/chat/${item.id}`,
                 params: {
-                  threadId: item.id,
                   partnerName: item.partnerName,
+                  itemName: item.itemName,
                 },
               })
           }
