@@ -26,6 +26,7 @@ export default function ChatScreen() {
 
   const threadId = params.threadId as string;
   const partnerName = params.partnerName as string || 'User';
+  const itemName = params.itemName as string || 'Item';
 
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
@@ -115,7 +116,7 @@ export default function ChatScreen() {
 
             <View>
               <Text style={styles.partnerName}>{partnerName}</Text>
-              <Text style={styles.itemName}>📦 Item</Text>
+              <Text style={styles.itemName}>📦 {itemName}</Text>
             </View>
           </View>
           <TouchableOpacity>
