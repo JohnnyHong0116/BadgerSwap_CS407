@@ -56,7 +56,7 @@ export default function AccountCenterScreen() {
         icon="lock"
         title="Change password"
         subtitle="Update your BadgerSwap password"
-        onPress={() => Alert.alert('Change password', 'Coming soon')}
+        onPress={() => router.push('/change-password')}
       />
       <Row
         icon="shield"

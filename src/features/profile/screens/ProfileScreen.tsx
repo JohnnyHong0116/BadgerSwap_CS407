@@ -10,7 +10,7 @@ import ListingRow from '../components/ListingRow';
 import ProfileControls from '../components/ProfileControls';
 import ItemCard from '../../marketplace/components/ItemCard';
 import { useAuth } from '../../auth/AuthProvider';
-import { collection, db, onSnapshot, orderBy, query, where } from '../../../lib/firebase';
+import { collection, db, doc, onSnapshot, orderBy, query, where } from '../../../lib/firebase';
 import type { Timestamp } from 'firebase/firestore';
 import { mapListingFromDoc } from '../../marketplace/useListings';
 import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
@@ -25,6 +25,8 @@ export default function ProfileScreen() {
   const [favoriteItems, setFavoriteItems] = useState<Item[]>([]);
   const [favoritesLoading, setFavoritesLoading] = useState(true);
   const [favoritesError, setFavoritesError] = useState<string | null>(null);
+  const [profileBio, setProfileBio] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const { user } = useAuth();
 
   const email = user?.email ?? '';
@@ -88,6 +90,20 @@ export default function ProfileScreen() {
     <ProfileControls status={status} onStatus={setStatus} view={view} onView={setView} />
   ) : null;
 
+  const bioAndContact = (
+    <View style={styles.infoCard}>
+      <Text style={styles.infoLabel}>Bio</Text>
+      <Text style={profileBio ? styles.infoText : styles.infoPlaceholder}>
+        {profileBio || 'Add a short bio in Edit Profile to tell buyers about yourself.'}
+      </Text>
+      <View style={styles.infoDivider} />
+      <Text style={styles.infoLabel}>Phone</Text>
+      <Text style={phoneNumber ? styles.infoText : styles.infoPlaceholder}>
+        {phoneNumber || 'Add a phone number in Edit Profile so buyers can reach you.'}
+      </Text>
+    </View>
+  );
+
   const handleProfileRefresh = useCallback(() => {
     return new Promise<void>((resolve) => {
       if (isFavoritesTab) {
@@ -104,6 +120,34 @@ export default function ProfileScreen() {
     onRefresh: handleProfileRefresh,
     indicatorOffset: topPad + 12,
   });
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setProfileBio('');
+      setPhoneNumber('');
+      return;
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(
+      userRef,
+      (snap) => {
+        if (!snap.exists()) {
+          setProfileBio('');
+          setPhoneNumber('');
+          return;
+        }
+        const data = snap.data() as { bio?: string; phoneNumber?: string };
+        setProfileBio(typeof data.bio === 'string' ? data.bio : '');
+        setPhoneNumber(typeof data.phoneNumber === 'string' ? data.phoneNumber : '');
+      },
+      (err) => {
+        console.error('Failed to load profile details:', err);
+      }
+    );
+
+    return unsubscribe;
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!listingsLoading && pendingListingsRefresh.current.length) {
@@ -246,6 +290,7 @@ export default function ProfileScreen() {
         {header}
         {tabs}
         {controls}
+        {bioAndContact}
       </Pressable>
       <View style={{ flex: 1 }}>
         {pullRefresh.indicator}
@@ -394,4 +439,32 @@ const styles = StyleSheet.create({
   emptyText: { color: '#6B7280' },
   ctaBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginTop: 8 },
   ctaBtnText: { color: COLORS.white, fontWeight: '700' },
+  infoCard: {
+    backgroundColor: COLORS.white,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 16,
+    gap: 6,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  infoText: {
+    color: '#111827',
+    lineHeight: 20,
+  },
+  infoPlaceholder: {
+    color: '#9CA3AF',
+    lineHeight: 20,
+  },
+  infoDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 6,
+  },
 });

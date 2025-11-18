@@ -101,6 +101,7 @@ function LayoutContent() {
         />
         <Stack.Screen name="edit-profile" options={{ title: 'Edit Profile' }} />
         <Stack.Screen name="account-center" options={{ title: 'Account Center' }} />
+        <Stack.Screen name="change-password" options={{ title: 'Change password' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings and activity' }} />
         <Stack.Screen name="activity" options={{ title: 'Activity' }} />
       </Stack>
