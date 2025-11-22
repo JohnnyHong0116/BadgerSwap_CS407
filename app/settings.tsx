@@ -99,11 +99,6 @@ export default function SettingsScreen() {
 
       {/* How you use BadgerSwap */}
       <Text style={styles.sectionLabel}>How you use BadgerSwap</Text>
-      <Row
-        icon="bookmark"
-        title="Saved"
-        onPress={() => Alert.alert('Saved coming soon')}
-      />
       <Row icon="clock" title="Your activity" href="/activity" />
       <Row
         icon="bell"
