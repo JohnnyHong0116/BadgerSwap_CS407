@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../src/features/auth/AuthProvider';
-import { useLoginActivity } from '../src/features/auth/loginActivity';
 import {
   collection,
   db,
@@ -23,7 +22,7 @@ import {
 } from '../src/lib/firebase';
 import { COLORS } from '../src/theme/colors';
 
-type ActivityType = 'all' | 'listing' | 'message' | 'account' | 'favorite';
+type ActivityType = 'listing' | 'message' | 'favorite';
 
 type ActivityItem = {
   id: string;
@@ -86,10 +85,8 @@ const SHORTCUTS: Shortcut[] = [
 ];
 
 const typeIconMap: Record<ActivityType, React.ComponentProps<typeof Feather>['name']> = {
-  all: 'activity',
   listing: 'tag',
   message: 'message-circle',
-  account: 'shield',
   favorite: 'heart',
 };
 
@@ -107,13 +104,8 @@ const formatTimeAgo = (date: Date | null) => {
 
 export default function ActivityScreen() {
   const { user } = useAuth();
-  const {
-    entries: loginActivity,
-    loading: loginLoading,
-    error: loginError,
-  } = useLoginActivity(user?.uid);
 
-  const [activeFilter, setActiveFilter] = useState<ActivityType>('all');
+  const [activeFilter, setActiveFilter] = useState<ActivityType>('listing');
 
   const [listingActivity, setListingActivity] = useState<ActivityItem[]>([]);
   const [listingLoading, setListingLoading] = useState(true);
@@ -141,7 +133,7 @@ export default function ActivityScreen() {
       collection(db, 'listings'),
       where('sellerId', '==', user.uid),
       orderBy('postedAt', 'desc'),
-      limit(50),
+      limit(10),
     );
 
     const unsubscribe = onSnapshot(
@@ -195,7 +187,7 @@ export default function ActivityScreen() {
       collection(db, 'chats'),
       where('participants', 'array-contains', user.uid),
       orderBy('timestamp', 'desc'),
-      limit(50),
+      limit(10),
     );
 
     const unsubscribe = onSnapshot(
@@ -247,7 +239,7 @@ export default function ActivityScreen() {
     const favoritesQuery = query(
       collection(db, 'users', user.uid, 'favorites'),
       orderBy('savedAt', 'desc'),
-      limit(50),
+      limit(10),
     );
 
     const unsubscribe = onSnapshot(
@@ -288,30 +280,20 @@ export default function ActivityScreen() {
   }, [user?.uid]);
 
   // ------- Combine all activity -------
-  const combinedActivity = useMemo<ActivityItem[]>(() => {
-    const loginMapped: ActivityItem[] = loginActivity.map(entry => ({
-      id: `login-${entry.id}`,
-      type: 'account',
-      title: 'Logged in',
-      context: entry.device,
-      createdAt: entry.createdAt,
-      icon: 'shield',
-    }));
+  const combinedActivity = useMemo<ActivityItem[]>(
+    () => [...listingActivity, ...favoriteActivity, ...chatActivity].sort((a, b) => {
+      if (!a.createdAt && !b.createdAt) return 0;
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    }),
+    [chatActivity, favoriteActivity, listingActivity],
+  );
 
-    return [...listingActivity, ...favoriteActivity, ...chatActivity, ...loginMapped].sort(
-      (a, b) => {
-        if (!a.createdAt && !b.createdAt) return 0;
-        if (!a.createdAt) return 1;
-        if (!b.createdAt) return -1;
-        return b.createdAt.getTime() - a.createdAt.getTime();
-      },
-    );
-  }, [chatActivity, favoriteActivity, listingActivity, loginActivity]);
-
-  const filteredActivity = useMemo(() => {
-    if (activeFilter === 'all') return combinedActivity;
-    return combinedActivity.filter(item => item.type === activeFilter);
-  }, [activeFilter, combinedActivity]);
+  const filteredActivity = useMemo(
+    () => combinedActivity.filter(item => item.type === activeFilter),
+    [activeFilter, combinedActivity],
+  );
 
   // ------- Stats -------
   const stats: StatCard[] = useMemo(() => {
@@ -352,11 +334,8 @@ export default function ActivityScreen() {
     ];
   }, [chatActivity, favoriteActivity, listingActivity]);
 
-  const loading =
-    user &&
-    (listingLoading || chatLoading || favoriteLoading || loginLoading);
-  const activeError =
-    listingError || chatError || favoriteError || loginError || null;
+  const loading = user && (listingLoading || chatLoading || favoriteLoading);
+  const activeError = listingError || chatError || favoriteError || null;
 
   // ------- UI -------
   return (
@@ -367,7 +346,10 @@ export default function ActivityScreen() {
       <Text style={styles.title}>Your activity</Text>
       <Text style={styles.subtitle}>
         Check what you've been up to on BadgerSwap. Review listings, messages,
-        and account changes in one place.
+        and favorites in one place.
+      </Text>
+      <Text style={styles.limitNote}>
+        Showing your 10 most recent items in each category.
       </Text>
 
       {user ? (
@@ -395,34 +377,25 @@ export default function ActivityScreen() {
           {/* Filter */}
           <Text style={styles.sectionLabel}>Activity feed</Text>
           <View style={styles.filterRow}>
-            {(['all', 'listing', 'message', 'favorite', 'account'] as ActivityType[]).map(
-              filter => {
-                const isActive = activeFilter === filter;
-                return (
-                  <TouchableOpacity
-                    key={filter}
-                    style={[
-                      styles.filterPill,
-                      isActive && styles.filterPillActive,
-                    ]}
-                    onPress={() => setActiveFilter(filter)}
+          {(['listing', 'message', 'favorite'] as ActivityType[]).map(filter => {
+              const isActive = activeFilter === filter;
+              return (
+                <TouchableOpacity
+                  key={filter}
+                  style={[
+                    styles.filterPill,
+                    isActive && styles.filterPillActive,
+                  ]}
+                  onPress={() => setActiveFilter(filter)}
+                >
+                  <Text
+                    style={[styles.filterText, isActive && styles.filterTextActive]}
                   >
-                    <Text
-                      style={[
-                        styles.filterText,
-                        isActive && styles.filterTextActive,
-                      ]}
-                    >
-                      {filter === 'all'
-                        ? 'All activity'
-                        : `${filter.charAt(0).toUpperCase()}${filter.slice(
-                            1,
-                          )}`}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              },
-            )}
+                    {`${filter.charAt(0).toUpperCase()}${filter.slice(1)}`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* Activity list */}
@@ -524,7 +497,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 6,
+  },
+  limitNote: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
   sectionLabel: {
     marginTop: 20,
