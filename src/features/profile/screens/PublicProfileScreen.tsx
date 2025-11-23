@@ -27,6 +27,7 @@ type ProfileDoc = {
   displayName?: string;
   photoURL?: string | null;
   phoneNumber?: string | null;
+  phone?: string | null;
   email?: string;
   isPrivate?: boolean;
 };
@@ -74,7 +75,8 @@ export default function PublicProfileScreen() {
           setProfileError('Seller not found.');
         } else {
           const data = snap.data() as ProfileDoc;
-          setProfile(data);
+          const phoneNumber = (data.phoneNumber ?? data.phone ?? '')?.trim();
+          setProfile({ ...data, phoneNumber: phoneNumber || null });
           setProfileError(null);
         }
         setProfileLoading(false);
