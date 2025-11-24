@@ -349,31 +349,24 @@ export default function ItemDetailScreen() {
                     return;
                   }
 
-                  // Get or create chat thread for buyer ↔ seller ↔ listing
+                  // Create or update conversation (ONE chat per buyer–seller pair)
+                  // Item context updates automatically inside api.ts
                   const threadId = await getOrCreateThread({
                     itemId: item.id,
                     itemName: item.title,
                     sellerId: item.sellerId,
                     buyerId: user.uid,
 
-                    // seller info (the person who posted the listing)
                     sellerName: resolvedSellerName,
                     sellerInitials: resolvedSellerName[0]?.toUpperCase() ?? 'S',
 
-                    // buyer info (current logged-in user)
                     buyerName: user.displayName || user.email || "User",
                     buyerInitials: (user.displayName || user.email || "U")[0].toUpperCase(),
                   });
 
-                  // Go to chat screen
-                  router.push({
-                    pathname: '/conversation/[threadId]',
-                    params: {
-                      threadId,
-                      partnerName: resolvedSellerName,
-                      itemName: item.title
-                    }
-                  });
+                  // Navigate to the correct unified conversation thread
+                  router.push(`/conversation/${threadId}`);
+
                 } catch (err: any) {
                   console.error('Failed to start chat:', err);
                   Alert.alert('Error', err?.message ?? 'Unable to open chat.');
