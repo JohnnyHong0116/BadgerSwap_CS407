@@ -6,6 +6,7 @@ import BottomNav from '../src/components/BottomNav';
 import { ToastProvider } from '../src/components/ToastProvider';
 import { AuthProvider, useAuth } from '../src/features/auth/AuthProvider';
 import { useMessageNotifications } from '../src/features/chat/useMessageNotifications';
+import { useMarketplaceNotifications } from '../src/features/marketplace/useMarketplaceNotifications.ts';
 import { COLORS } from '../src/theme/colors';
 
 export default function RootLayout() {
@@ -59,7 +60,7 @@ function LayoutContent() {
 
   return (
     <>
-      <MessageNotificationListener />
+      <NotificationListeners />
       <Stack
         screenOptions={{
           headerStyle: {
@@ -134,7 +135,8 @@ function LayoutContent() {
   );
 }
 
-function MessageNotificationListener() {
+function NotificationListeners() {
   useMessageNotifications();
+  useMarketplaceNotifications();
   return null;
 }
