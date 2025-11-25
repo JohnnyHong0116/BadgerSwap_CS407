@@ -18,6 +18,7 @@ export function useMessageNotifications() {
   const previousUnreadRef = useRef<Record<string, number>>({});
   const hydratedRef = useRef(false);
   const unsubscribeThreadsRef = useRef<(() => void) | null>(null);
+  const lastEnabledRef = useRef<number>(Date.now());
 
   useEffect(() => {
     previousUnreadRef.current = {};
@@ -47,6 +48,10 @@ export function useMessageNotifications() {
         return;
       }
 
+      // When notifications are re-enabled, mark the time so we only surface
+      // messages that arrive after this point.
+      lastEnabledRef.current = Date.now();
+
       if (unsubscribeThreadsRef.current) return;
 
       unsubscribeThreadsRef.current = subscribeToThreads(user.uid, (threads) => {
@@ -65,8 +70,13 @@ export function useMessageNotifications() {
           if (!key) return;
           const unread = getUnreadCount(thread, user.uid);
           const previous = previousUnreadRef.current[key] ?? 0;
+          const lastMessageTimestamp = thread.timestamp?.toMillis?.();
 
-          if (unread > previous && thread.lastMessage) {
+          if (
+            unread > previous &&
+            thread.lastMessage &&
+            (!lastMessageTimestamp || lastMessageTimestamp >= lastEnabledRef.current)
+          ) {
             showToast({ title: formatTitle(thread), message: thread.lastMessage });
           }
 
