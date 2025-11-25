@@ -90,7 +90,7 @@ function LayoutContent() {
           }}
         />
         <Stack.Screen
-          name="report-listing"
+          name="report-listing/[itemId]"
           options={{
             title: 'Report this listing',
           }}

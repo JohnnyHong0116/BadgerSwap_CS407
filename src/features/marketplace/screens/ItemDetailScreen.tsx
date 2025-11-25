@@ -447,7 +447,23 @@ export default function ItemDetailScreen() {
 
           {/* Report Button */}
           {!isOwnListing && (
-            <TouchableOpacity style={styles.reportButton}>
+            <TouchableOpacity
+            style={styles.reportButton}
+            onPress={() => {
+              if (!user?.uid) {
+                Alert.alert('Sign in required', 'Please log in to submit a report.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Log in', onPress: () => router.push('/login') },
+                ]);
+                return;
+              }
+
+              router.push({
+                pathname: '/report-listing/[itemId]',
+                params: { itemId: item.id, title: item.title },
+              });
+            }}
+          >
               <Feather name="flag" size={16} color={COLORS.primary} />
               <Text style={styles.reportText}>Report this listing</Text>
             </TouchableOpacity>
