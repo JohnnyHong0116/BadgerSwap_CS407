@@ -11,26 +11,29 @@ export default function ProfileControls({
   onStatus,
   view,
   onView,
+  showStatus = true,
 }: {
   status: Status;
   onStatus: (s: Status) => void;
   view: ViewMode;
   onView: (v: ViewMode) => void;
+  showStatus?: boolean;
 }) {
   return (
     <View style={styles.wrap}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-        {(['all', 'available', 'sold'] as Status[]).map((f) => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.chip, status === f && styles.chipActive]}
-            onPress={() => onStatus(f)}
-          >
-            <Text style={[styles.chipText, status === f && styles.chipTextActive]}>
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {showStatus &&
+          (['all', 'available', 'sold'] as Status[]).map((f) => (
+            <TouchableOpacity
+              key={f}
+              style={[styles.chip, status === f && styles.chipActive]}
+              onPress={() => onStatus(f)}
+            >
+              <Text style={[styles.chipText, status === f && styles.chipTextActive]}>
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
       </ScrollView>
       <View style={styles.toggle}>
         <TouchableOpacity

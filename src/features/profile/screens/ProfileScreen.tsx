@@ -53,11 +53,6 @@ export default function ProfileScreen() {
   const uwVerified = email ? email.toLowerCase().endsWith('@wisc.edu') : false;
 
   // Compose a lightweight view model for the header so UI stays dumb
-  const listings: Item[] = useMemo(() => userListings, [userListings]);
-  const soldCount = useMemo(
-    () => listings.filter((listing) => listing.status === 'sold').length,
-    [listings]
-  );
   const profileUser = useMemo(
     () => ({
       id: user?.uid ?? '',
@@ -65,12 +60,12 @@ export default function ProfileScreen() {
       name: displayName,
       uwVerified,
       stats: {
-        listings: listings.length,
-        sold: soldCount,
+        listings: userListings.length,
+        sold: 0,
         favorites: favoriteItems.length,
       },
     }),
-    [user?.uid, username, displayName, uwVerified, listings.length, soldCount, favoriteItems.length]
+    [user?.uid, username, displayName, uwVerified, userListings.length, favoriteItems.length]
   );
 
   const [tab, setTab] = useState<'listings' | 'favorites'>('listings');
@@ -94,9 +89,10 @@ export default function ProfileScreen() {
   const [favoritesRefreshKey, setFavoritesRefreshKey] = useState(0);
   const pendingListingsRefresh = useRef<(() => void)[]>([]);
   const pendingFavoritesRefresh = useRef<(() => void)[]>([]);
-  
+
+  const listings: Item[] = useMemo(() => userListings, [userListings]);
   const favorites: Item[] = useMemo(() => favoriteItems, [favoriteItems]);
-  const filteredListings = useMemo(() => {
+  const filteredListings: Item[] = useMemo(() => {
     if (status === 'sold') {
       return listings.filter((listing) => listing.status === 'sold');
     }
@@ -138,15 +134,15 @@ export default function ProfileScreen() {
 
   const tabs = <ProfileTabs active={tab} onChange={(t) => setTab(t)} />;
 
-  const controls =
-    tab === 'listings' ? (
-      <ProfileControls
-        status={status}
-        onStatus={setStatus}
-        view={view}
-        onView={setView}
-      />
-    ) : null;
+  const controls = (
+    <ProfileControls
+      status={status}
+      onStatus={setStatus}
+      view={view}
+      onView={setView}
+      showStatus={!isFavoritesTab}
+    />
+  );
 
   // Fan out to the right Firestore query when the pull-to-refresh fires
   const handleProfileRefresh = useCallback(() => {
@@ -311,7 +307,8 @@ export default function ProfileScreen() {
       pullRefresh.onScroll(e);
       const y = e.nativeEvent.contentOffset.y;
       if (!collapseEnabled) {
-        scrollY.setValue(Math.max(0, y));
+        // When collapse is disabled (not enough items), force header fully expanded
+        scrollY.setValue(0);
         if (isCollapsed) setIsCollapsed(false);
         return;
       }
@@ -327,28 +324,24 @@ export default function ProfileScreen() {
     [pullRefresh, collapseEnabled, isCollapsed, scrollY]
   );
 
-  const headerContent = (
-    <Pressable
-      onPress={() => {
-        const now = Date.now();
-        if (now - lastTapRef.current < 300) {
-          if (listRef.current?.scrollToOffset) {
-            listRef.current.scrollToOffset({ offset: 0, animated: true });
-          }
-        }
-        lastTapRef.current = now;
-      }}
-      style={{ paddingTop: topPad }}
-    >
-      {header}
-      {tabs}
-      {controls}
-      <View style={{ height: 12 }} />
-    </Pressable>
-  );
-
   return (
     <View style={styles.container}>
+      <Pressable
+        onPress={() => {
+          const now = Date.now();
+          if (now - lastTapRef.current < 300) {
+            if (listRef.current?.scrollToOffset) {
+              listRef.current.scrollToOffset({ offset: 0, animated: true });
+            }
+          }
+          lastTapRef.current = now;
+        }}
+        style={{ paddingTop: topPad }}
+      >
+        {header}
+        {tabs}
+        {controls}
+      </Pressable>
       <View style={{ flex: 1 }}>
         {pullRefresh.indicator}
         <Animated.FlatList
@@ -376,9 +369,7 @@ export default function ProfileScreen() {
               : undefined
           }
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          ListHeaderComponent={
-            <View style={{ backgroundColor: COLORS.background }}>{headerContent}</View>
-          }
+          ListHeaderComponent={<View style={{ height: 12 }} />}
           ListFooterComponent={
             spacerHeight ? <View style={{ height: spacerHeight }} /> : null
           }
