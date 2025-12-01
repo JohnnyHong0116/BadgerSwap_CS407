@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -121,16 +120,6 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-      {/* Search */}
-      <View style={styles.searchBar}>
-        <Feather name="search" size={18} color="#9CA3AF" />
-        <TextInput
-          placeholder="Search"
-          placeholderTextColor="#9CA3AF"
-          style={styles.searchInput}
-        />
-      </View>
-
       {/* Your account */}
       <Text style={styles.sectionLabel}>Your account</Text>
       <Row
@@ -187,23 +176,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    margin: 16,
-    marginBottom: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  searchInput: {
-    marginLeft: 8,
-    flex: 1,
-    color: '#111827',
   },
   sectionLabel: {
     marginTop: 8,
