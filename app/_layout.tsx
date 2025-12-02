@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { Link, Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import BottomNav from '../src/components/BottomNav';
 import { ToastProvider } from '../src/components/ToastProvider';
 import { AuthProvider, useAuth } from '../src/features/auth/AuthProvider';
@@ -11,13 +12,15 @@ import { COLORS } from '../src/theme/colors';
 
 export default function RootLayout() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <AuthGate>
-          <LayoutContent />
-        </AuthGate>
-      </AuthProvider>
-    </ToastProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ToastProvider>
+        <AuthProvider>
+          <AuthGate>
+            <LayoutContent />
+          </AuthGate>
+        </AuthProvider>
+      </ToastProvider>
+    </GestureHandlerRootView>
   );
 }
 

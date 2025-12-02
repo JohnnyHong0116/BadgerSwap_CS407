@@ -26,7 +26,7 @@
  *
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -35,8 +35,10 @@ import {
   Animated,
   StyleSheet,
 } from 'react-native';
+import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 
 import { router } from 'expo-router';
+import { db, doc, updateDoc, collection, getDocs, writeBatch } from '../../../lib/firebase';
 import { Feather as Icon } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
 
@@ -57,9 +59,11 @@ import { useAuth } from '../../auth/AuthProvider';
 export default function ChatListScreen() {
 
   const { user } = useAuth();
+  const openSwipeRef = useRef<Swipeable | null>(null);
 
   // Raw conversation list from Firestore
   const [conversations, setConversations] = useState<any[]>([]);
+  const [hiddenThreadIds, setHiddenThreadIds] = useState<string[]>([]);
 
   // Search bar text
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,9 +107,12 @@ export default function ChatListScreen() {
         unreadCount: t.unread?.[user.uid] || 0,
       }));
 
-      setConversations(formatted);
+      const filteredByHide = formatted.filter(
+        (t: any) => !hiddenThreadIds.includes(t.id)
+      );
+      setConversations(filteredByHide);
     });
-  }, [user]);
+  }, [user, hiddenThreadIds]);
 
 
 
@@ -138,23 +145,114 @@ export default function ChatListScreen() {
 
 
 
+  const handleToggleRead = async (item: any) => {
+    if (!user?.uid) return;
+    try {
+      const threadRef = doc(db, 'chats', item.id);
+      const next = item.unreadCount > 0 ? 0 : 1;
+      await updateDoc(threadRef, { [`unread.${user.uid}`]: next });
+      // Close any open swipe row after toggling read state
+      if (openSwipeRef.current) {
+        openSwipeRef.current.close();
+      }
+    } catch (err) {
+      console.error('Failed to toggle read state for thread', err);
+    }
+  };
+
+  const handleHide = (item: any) => {
+    setHiddenThreadIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+  };
+
+  const handleDelete = async (item: any) => {
+    try {
+      const threadRef = doc(db, 'chats', item.id);
+      const msgsRef = collection(threadRef, 'messages');
+      const snap = await getDocs(msgsRef);
+      const batch = writeBatch(db);
+      snap.forEach((d) => batch.delete(d.ref));
+      batch.delete(threadRef);
+      await batch.commit();
+    } catch (err) {
+      console.error('Failed to delete thread', err);
+    }
+  };
+
+  const renderRightActions = (item: any, progress: Animated.AnimatedInterpolation<number>) => {
+    const translateX = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [80 * 3, 0],
+    });
+    const isCurrentlyUnread = item.unreadCount > 0;
+    return (
+      <Animated.View style={[styles.swipeActions, { transform: [{ translateX }] }]}>
+        <TouchableOpacity
+          style={[styles.swipeAction, styles.swipeMark]}
+          onPress={() => handleToggleRead(item)}
+        >
+          <Text style={styles.swipeText}>
+            {'Mark as'}
+            {'\n'}
+            {isCurrentlyUnread ? 'read' : 'unread'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.swipeAction, styles.swipeHide]}
+          onPress={() => handleHide(item)}
+        >
+          <Text style={styles.swipeText}>Hide</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.swipeAction, styles.swipeDelete]}
+          onPress={() => handleDelete(item)}
+        >
+          <Text style={styles.swipeText}>Delete</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+
   /* ----------------------------------------------------------------------
    * Render a single conversation preview row
    * ---------------------------------------------------------------------- */
-  const renderConversation = ({ item }: any) => (
-      <TouchableOpacity
-          style={styles.conversationItem}
-
-          /**
-           * IMPORTANT:
-           * Navigate using ONLY the unified threadId.
-           */
-          onPress={() => router.push(`/conversation/${item.id}`)}
+  const renderConversation = ({ item }: any) => {
+    let rowSwipeRef: Swipeable | null = null;
+    return (
+      <Swipeable
+        ref={(ref) => {
+          rowSwipeRef = ref;
+        }}
+        renderRightActions={(progress) => renderRightActions(item, progress)}
+        onSwipeableWillOpen={() => {
+          if (openSwipeRef.current && openSwipeRef.current !== rowSwipeRef) {
+            openSwipeRef.current.close();
+          }
+          openSwipeRef.current = rowSwipeRef;
+        }}
+        onSwipeableClose={() => {
+          if (openSwipeRef.current === rowSwipeRef) {
+            openSwipeRef.current = null;
+          }
+        }}
       >
-        {/* Avatar */}
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.partnerInitials}</Text>
-        </View>
+        <TouchableOpacity
+          style={styles.conversationItem}
+          onPress={() => router.push(`/conversation/${item.id}`)}
+        >
+          {/* Avatar with unread dot */}
+          <View style={styles.avatarWrapper}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{item.partnerInitials}</Text>
+            </View>
+            {item.unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadCount}>
+                  {item.unreadCount > 9 ? '9+' : item.unreadCount}
+                </Text>
+              </View>
+            )}
+          </View>
 
         {/* Conversation details */}
         <View style={styles.conversationContent}>
@@ -168,7 +266,7 @@ export default function ChatListScreen() {
           {/* Item name */}
           <Text style={styles.itemName}>📦 {item.itemName}</Text>
 
-          {/* Last message preview + unread badge */}
+          {/* Last message preview */}
           <View style={styles.messagePreview}>
             <Text
                 style={[
@@ -179,17 +277,13 @@ export default function ChatListScreen() {
             >
               {item.lastMessage}
             </Text>
-
-            {item.unreadCount > 0 && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadCount}>{item.unreadCount}</Text>
-                </View>
-            )}
           </View>
 
         </View>
-      </TouchableOpacity>
-  );
+        </TouchableOpacity>
+      </Swipeable>
+    );
+  };
 
 
 
@@ -197,7 +291,7 @@ export default function ChatListScreen() {
    *  UI RENDER
    * ====================================================================== */
   return (
-      <View style={styles.container}>
+      <GestureHandlerRootView style={styles.container}>
 
         {/* ================================================================
        *  Search bar
@@ -280,7 +374,7 @@ export default function ChatListScreen() {
             </View>
         )}
 
-      </View>
+      </GestureHandlerRootView>
   );
 }
 
@@ -319,12 +413,18 @@ const styles = StyleSheet.create({
   // Each conversation row
   conversationItem: {
     flexDirection: 'row',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    height: 88,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
 
+  avatarWrapper: {
+    marginRight: 12,
+    position: 'relative',
+  },
   avatar: {
     width: 56,
     height: 56,
@@ -332,7 +432,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   avatarText: {
     color: COLORS.white,
@@ -372,6 +471,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 4,
   },
 
   lastMessage: {
@@ -386,14 +486,18 @@ const styles = StyleSheet.create({
   },
 
   unreadBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 5,
     backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
+    borderWidth: 2,
+    borderColor: COLORS.white,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    marginLeft: 8,
   },
 
   unreadCount: {
@@ -424,7 +528,7 @@ const styles = StyleSheet.create({
   },
 
   listContent: {
-    paddingBottom: 96,
+    paddingBottom: 112,
     flexGrow: 1,
   },
 
@@ -439,5 +543,28 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  swipeActions: {
+    flexDirection: 'row',
+    height: '100%',
+  },
+  swipeAction: {
+    width: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  swipeMark: {
+    backgroundColor: '#007AFF',
+  },
+  swipeHide: {
+    backgroundColor: '#FF9500',
+  },
+  swipeDelete: {
+    backgroundColor: '#FF3B30',
+  },
+  swipeText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    textAlign: 'center',
   },
 });
