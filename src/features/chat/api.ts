@@ -60,6 +60,11 @@ export interface ChatMessage {
     // Message Reactions (existing)
     // --------------------------------------------------------------
     reactions?: Record<string, string | null>;
+
+    // --------------------------------------------------------------
+    // NEW — Withdrawn messages (allow delete within 3 mins)
+    // --------------------------------------------------------------
+    withdrawn?: boolean;
 }
 
 // Thread shape from Firestore
@@ -106,8 +111,6 @@ export async function getOrCreateThread(ctx: ThreadContext) {
         buyerInitials,
     } = ctx;
 
-    // Use a per-item thread id so different listings between
-    // the same buyer and seller get separate conversations.
     const baseId = makeThreadId(buyerId, sellerId);
     const threadId = `${baseId}_${itemId}`;
     const ref = doc(db, "chats", threadId);
@@ -203,6 +206,9 @@ export async function sendMessage(
         senderId,
         text,
         createdAt: serverTimestamp(),
+
+        // NEW — withdrawn default false
+        withdrawn: false,
     });
 
     await updateDoc(threadRef, {
@@ -256,6 +262,9 @@ export async function sendPhoto(
         senderId,
         photoUrl: downloadUrl,
         createdAt: serverTimestamp(),
+
+        // NEW — withdrawn default false
+        withdrawn: false,
     });
 
     // 5. Update thread preview
@@ -318,12 +327,33 @@ export function subscribeToThreads(
                     ? data.sellerInitials
                     : data.buyerInitials;
 
+            // Fix empty-thread bug AND withdrawn preview bug
+            let preview = data.lastMessage || "";
+
+            // CASE 1: withdrawn last message → show placeholder
+            if (preview.trim() === "" && data.timestamp && data.lastMessage === "") {
+                preview = "Message withdrawn";
+            }
+
+            // CASE 2: truly empty thread (no messages yet)
+            // We detect empty thread by: lastMessage === "" AND unread counts = 0
+            const isEmptyThread =
+                preview === "Message withdrawn" &&
+                Object.values(data.unread || {}).every((x) => x === 0);
+
+            // For EMPTY threads → force preview to "" so ChatList hides them
+            if (isEmptyThread) {
+                preview = "";
+            }
+
             return {
                 id: d.id,
                 ...data,
+                lastMessage: preview,      // ⭐ IMPORTANT FIX
                 partnerName,
                 partnerInitials,
             };
+
         });
 
         callback(threads);
@@ -366,6 +396,46 @@ export async function removeReaction(
 
     await updateDoc(msgRef, {
         [`reactions.${userId}`]: null,
+    });
+}
+
+// =====================================================================
+// 8. WITHDRAW MESSAGE (NEW FEATURE)
+// =====================================================================
+
+/**
+ * Determine whether a message can be withdrawn.
+ * Rule: Only within 3 minutes (180000 ms)
+ */
+export function canWithdrawMessage(createdAt: any): boolean {
+    if (!createdAt) return false;
+
+    try {
+        const ts = createdAt.toMillis ? createdAt.toMillis() : createdAt;
+        return Date.now() - ts <= 3 * 60 * 1000;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Withdraw a message — marks it as withdrawn = true
+ * UI will hide original text/photo and show a placeholder
+ */
+export async function withdrawMessage(threadId: string, messageId: string) {
+    const msgRef = doc(db, "chats", threadId, "messages", messageId);
+    const threadRef = doc(db, "chats", threadId);
+
+    // 1. Withdraw the message
+    await updateDoc(msgRef, {
+        withdrawn: true,
+        text: "",
+        photoUrl: "",
+    });
+
+    // 2. Update thread preview so ChatListScreen shows the withdrawn state
+    await updateDoc(threadRef, {
+        lastMessage: "Message withdrawn",
     });
 }
 

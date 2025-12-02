@@ -35,7 +35,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Image,       // <-- ADD THIS
+  Image,
 } from "react-native";
 
 import { Feather as Icon } from "@expo/vector-icons";
@@ -52,6 +52,8 @@ import {
   subscribeToMessages,
   toggleReaction,
   removeReaction,
+  withdrawMessage,
+  canWithdrawMessage,
 } from "../api";
 
 import { db, doc, getDoc } from "../../../lib/firebase";
@@ -121,14 +123,13 @@ export default function ChatScreen() {
       }
 
       if (!pName || !pInitials) {
-        // Fallback to participant-based resolution
         const fallbackOther = otherId;
         pName =
-          fallbackOther === data.sellerId ? data.sellerName : data.buyerName;
+            fallbackOther === data.sellerId ? data.sellerName : data.buyerName;
         pInitials =
-          fallbackOther === data.sellerId
-            ? data.sellerInitials
-            : data.buyerInitials;
+            fallbackOther === data.sellerId
+                ? data.sellerInitials
+                : data.buyerInitials;
       }
 
       setPartnerName((pName || "User").toString());
@@ -153,6 +154,8 @@ export default function ChatScreen() {
       const formatted = msgs.map((m: any) => ({
         id: m.id,
         text: m.text,
+        photoUrl: m.photoUrl || null,
+        withdrawn: m.withdrawn || false,
         sender: m.senderId === user.uid ? "me" : "other",
         reactions: m.reactions || {},
         raw: m,
@@ -196,6 +199,13 @@ export default function ChatScreen() {
       chosen: "like" | "love" | "laugh"
   ) => {
     if (!user || !threadId) return;
+
+    // NEW: Do not allow reactions on withdrawn messages
+    const targetMsg = messages.find((m) => m.id === msgId);
+    if (targetMsg?.withdrawn) {
+      setActiveReactionTarget(null);
+      return;
+    }
 
     setActiveReactionTarget(null);
 
@@ -268,10 +278,52 @@ export default function ChatScreen() {
   };
 
   /* ====================================================================
-   * Render a chat bubble + reactions
-   * ==================================================================== */
+  * Withdraw Message Menu (NEW FEATURE)
+  * ====================================================================
+  *
+  *  Allows user to withdraw their own message if:
+  *     1. They are the sender
+  *     2. The message was created within 3 minutes
+  *
+  *  This shows a small menu:
+  *     - Withdraw message
+  *     - Cancel
+  *
+  *  If confirmed: calls withdrawMessage(threadId, messageId)
+  * ==================================================================== */
+  const openWithdrawMenu = (msg: any) => {
+    const isMine = msg.sender === "me";
+    if (!isMine) return;
+
+    // Time limit check
+    const allowed = canWithdrawMessage(msg.raw?.createdAt);
+    if (!allowed) {
+      Alert.alert("Cannot withdraw", "You can only withdraw a message within 3 minutes.");
+      return;
+    }
+
+    Alert.alert("Message options", "", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Withdraw message",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await withdrawMessage(threadId, msg.id);
+          } catch {
+            Alert.alert("Failed to withdraw message");
+          }
+        },
+      },
+    ]);
+  };
+
+  /* ====================================================================
+ * Render a chat bubble + reactions + withdrawn status
+ * ==================================================================== */
   const renderMessage = ({ item }: any) => {
     const isMine = item.sender === "me";
+    const withdrawn = item.withdrawn === true; // ⭐ NEW
 
     const rawReaction = item.reactions?.[user?.uid ?? ""] ?? null;
     const typedUserReaction =
@@ -286,10 +338,13 @@ export default function ChatScreen() {
               isMine ? styles.myMessageContainer : styles.otherMessageContainer,
             ]}
         >
-          {/* Long press to open reactions */}
+          {/* Long press: reactions + withdraw menu */}
           <TouchableOpacity
               activeOpacity={0.9}
-              onLongPress={() => setActiveReactionTarget(item.id)}
+              onLongPress={() => {
+                if (!withdrawn) openWithdrawMenu(item);      // ⭐ NEW
+                if (!withdrawn) setActiveReactionTarget(item.id); // ⭐ NEW
+              }}
           >
             <View
                 style={[
@@ -297,23 +352,41 @@ export default function ChatScreen() {
                   isMine ? styles.myMessage : styles.otherMessage,
                 ]}
             >
-              {item.photoUrl ? (
+              {/* ============================================================
+             *  Withdrawn Message State
+             * ============================================================ */}
+              {withdrawn ? (
+                  <Text
+                      style={[
+                        styles.messageText,
+                        { fontStyle: "italic", opacity: 0.6 },
+                        isMine && styles.myMessageText,
+                      ]}
+                  >
+                    Message withdrawn
+                  </Text>
+              ) : item.photoUrl ? (
                   <Image source={{ uri: item.photoUrl }} style={styles.photo} />
               ) : (
                   <Text
-                      style={[styles.messageText, isMine && styles.myMessageText]}
+                      style={[
+                        styles.messageText,
+                        isMine && styles.myMessageText,
+                      ]}
                   >
                     {item.text}
                   </Text>
               )}
-
             </View>
           </TouchableOpacity>
 
+          {/* Timestamp */}
           <Text style={styles.timeText}>{item.time}</Text>
 
-          {/* Reactions row */}
-          {Object.keys(item.reactions).length > 0 && (
+          {/* ============================================================
+         *  Reactions row (hidden if withdrawn)
+         * ============================================================ */}
+          {!withdrawn && Object.keys(item.reactions).length > 0 && (
               <View style={styles.reactionRow}>
                 {Object.entries(item.reactions).map(([uid, r]) => {
                   if (!r) return null;
@@ -327,29 +400,25 @@ export default function ChatScreen() {
               </View>
           )}
 
-          {/* Reaction picker */}
-          {activeReactionTarget === item.id && (
+          {/* ============================================================
+         *  Reaction picker (hidden if withdrawn)
+         * ============================================================ */}
+          {activeReactionTarget === item.id && !withdrawn && (
               <View style={styles.reactionPicker}>
                 <TouchableOpacity
-                    onPress={() =>
-                        handleReaction(item.id, typedUserReaction, "like")
-                    }
+                    onPress={() => handleReaction(item.id, typedUserReaction, "like")}
                 >
                   <Text style={styles.reactionPickerEmoji}>👍</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    onPress={() =>
-                        handleReaction(item.id, typedUserReaction, "love")
-                    }
+                    onPress={() => handleReaction(item.id, typedUserReaction, "love")}
                 >
                   <Text style={styles.reactionPickerEmoji}>❤️</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    onPress={() =>
-                        handleReaction(item.id, typedUserReaction, "laugh")
-                    }
+                    onPress={() => handleReaction(item.id, typedUserReaction, "laugh")}
                 >
                   <Text style={styles.reactionPickerEmoji}>😂</Text>
                 </TouchableOpacity>

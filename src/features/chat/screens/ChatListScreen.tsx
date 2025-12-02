@@ -92,23 +92,25 @@ export default function ChatListScreen() {
     if (!user) return;
 
     return subscribeToThreads(user.uid, (threads) => {
+      // ⭐ FIX: show all threads, even if lastMessage is withdrawn
       const visibleThreads = threads.filter((t: any) => {
-        const preview = (t.lastMessage ?? '').trim();
-        return preview.length > 0;
+        return t.lastMessage && t.lastMessage.trim().length > 0;
       });
 
       const formatted = visibleThreads.map((t: any) => ({
-        id: t.threadId ?? t.id,     // ensure threadId is used consistently
+        id: t.threadId ?? t.id,
         partnerName: t.partnerName,
         partnerInitials: t.partnerInitials,
         itemName: t.itemName ?? "Item",
-        lastMessage: t.lastMessage || "",
-        timestamp: "now",          // placeholder; can swap for real date later
+        lastMessage: t.lastMessage?.trim()
+            ? t.lastMessage
+            : "Message withdrawn",    // already added
+        timestamp: "now",
         unreadCount: t.unread?.[user.uid] || 0,
       }));
 
       const filteredByHide = formatted.filter(
-        (t: any) => !hiddenThreadIds.includes(t.id)
+          (t: any) => !hiddenThreadIds.includes(t.id)
       );
       setConversations(filteredByHide);
     });
