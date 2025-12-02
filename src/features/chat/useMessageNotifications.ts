@@ -50,36 +50,19 @@ export function useMessageNotifications() {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  // Tracks unread count per thread from previous snapshot.
   const previousUnreadRef = useRef<Record<string, number>>({});
-
-  // Prevents triggering notifications during initial hydration.
   const hydratedRef = useRef(false);
-
-  // Stores unsubscribe function for the threads listener.
   const unsubscribeThreadsRef = useRef<(() => void) | null>(null);
-
-  // Tracks when notifications were last enabled.
   const lastEnabledRef = useRef<number>(Date.now());
-
-
 
   /* ====================================================================
    * Main useEffect — Handles all notification logic
    * ==================================================================== */
   useEffect(() => {
 
-    // Reset local state whenever user changes.
     previousUnreadRef.current = {};
     hydratedRef.current = false;
 
-
-
-    /* ---------------------------------------------------------------
-     * If there is no logged-in user:
-     *   - Clean up existing listener
-     *   - Stop all notification tracking
-     * --------------------------------------------------------------- */
     if (!user?.uid) {
       if (unsubscribeThreadsRef.current) {
         unsubscribeThreadsRef.current();
@@ -88,27 +71,13 @@ export function useMessageNotifications() {
       return undefined;
     }
 
-    /* ---------------------------------------------------------------
-     * Subscribe to this user's Firestore document
-     * to read notification preferences in real-time.
-     * --------------------------------------------------------------- */
     const userRef = doc(db, 'users', user.uid);
 
     const unsubscribeUser = onSnapshot(userRef, (snap) => {
 
       const data = snap.data() as { notificationPreferences?: Record<string, boolean> } | undefined;
-
-      // Whether message notifications are enabled for this user.
       const messagesEnabled = data?.notificationPreferences?.messages ?? true;
 
-
-
-      /* -------------------------------------------------------------
-       * If message notifications are disabled:
-       *   - Remove thread listener
-       *   - Reset unread state
-       *   - Stop processing
-       * ------------------------------------------------------------- */
       if (!messagesEnabled) {
 
         if (unsubscribeThreadsRef.current) {
@@ -121,38 +90,14 @@ export function useMessageNotifications() {
         return;
       }
 
-
-
-      /* -------------------------------------------------------------
-       * When notifications are re-enabled:
-       *   Record the current time so we only notify
-       *   for messages that arrive after this moment.
-       * ------------------------------------------------------------- */
       lastEnabledRef.current = Date.now();
 
-
-
-      /* -------------------------------------------------------------
-       * If already subscribed to threads, do not re-subscribe.
-       * ------------------------------------------------------------- */
       if (unsubscribeThreadsRef.current) return;
 
-
-
-      /* -------------------------------------------------------------
-       * Subscribe to ALL chat threads for this user.
-       * This listener fires whenever:
-       *    - a message arrives
-       *    - unread count changes
-       *    - partner name changes
-       *    - lastMessage updates
-       * ------------------------------------------------------------- */
       unsubscribeThreadsRef.current = subscribeToThreads(user.uid, (threads) => {
 
         /* -----------------------------------------------------------
-         * First time receiving threads (hydration phase):
-         *   - Record unread counts but DO NOT show any notifications
-         *   - Prevents triggering toasts for old messages
+         * INITIAL HYDRATION: no notifications yet
          * ----------------------------------------------------------- */
         if (!hydratedRef.current) {
 
@@ -166,12 +111,8 @@ export function useMessageNotifications() {
           return;
         }
 
-
-
         /* -----------------------------------------------------------
-         * For every live update:
-         *   - Compare unread count with previous unread count
-         *   - If increased AND message is new → show toast
+         * LIVE UPDATES: compare unread counts
          * ----------------------------------------------------------- */
         threads.forEach((thread) => {
 
@@ -183,15 +124,23 @@ export function useMessageNotifications() {
 
           const lastMessageTimestamp = thread.timestamp?.toMillis?.();
 
+          /* ============================================================
+           * ⭐ NEW RULE FOR WITHDRAWN MESSAGES
+           *
+           * If the message was withdrawn, thread.lastMessage === ""
+           * → We MUST NOT fire a toast.
+           * ============================================================ */
+          const isWithdrawnMessage = !thread.lastMessage || thread.lastMessage.trim() === "";
 
-
-          // Conditions for showing a toast:
-          //   1. unread increased
-          //   2. thread has a lastMessage string
-          //   3. message timestamp ≥ when notifications were last enabled
+          /* ============================================================
+           * Conditions for showing a toast:
+           *   1. unread increased
+           *   2. lastMessage exists and is not withdrawn
+           *   3. timestamp >= notifications enabled time
+           * ============================================================ */
           if (
               unread > previous &&
-              thread.lastMessage &&
+              !isWithdrawnMessage &&                                // ⭐ BLOCK withdrawn messages
               (!lastMessageTimestamp || lastMessageTimestamp >= lastEnabledRef.current)
           ) {
             showToast({
@@ -200,15 +149,10 @@ export function useMessageNotifications() {
             });
           }
 
-
-
-          // Update previous unread count for next comparison.
           previousUnreadRef.current[key] = unread;
         });
       });
     });
-
-
 
     /* ====================================================================
      * Cleanup on unmount or when user changes
