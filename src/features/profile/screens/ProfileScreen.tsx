@@ -296,6 +296,13 @@ export default function ProfileScreen() {
     }
   }, [collapseEnabled, isCollapsed, scrollY]);
 
+  const normalizePronouns = (value?: string | null) => {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (!trimmed) return null;
+    if (trimmed.toLowerCase() === 'prefer not to say') return null;
+    return trimmed;
+  };
+
   // Listen to user doc for phone (realtime)
   useEffect(() => {
     if (!user?.uid) {
@@ -310,9 +317,8 @@ export default function ProfileScreen() {
         if (snap.exists()) {
           const data = snap.data() as { phone?: string; phoneNumber?: string; pronouns?: string };
           const value = (data.phoneNumber ?? data.phone ?? '').trim();
-          const pronounValue = typeof data.pronouns === 'string' ? data.pronouns.trim() : '';
           setPhone(value || null);
-          setPronouns(pronounValue || null);
+          setPronouns(normalizePronouns(data.pronouns));
         } else {
           setPhone(null);
           setPronouns(null);
