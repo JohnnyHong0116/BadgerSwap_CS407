@@ -44,6 +44,7 @@ export default function ProfileScreen() {
 
   // phone we read from Firestore user doc
   const [phone, setPhone] = useState<string | null>(null);
+  const [pronouns, setPronouns] = useState<string | null>(null);
 
   const { user } = useAuth();
 
@@ -59,13 +60,22 @@ export default function ProfileScreen() {
       username,
       name: displayName,
       uwVerified,
+      pronouns: pronouns ?? undefined,
       stats: {
         listings: userListings.length,
         sold: 0,
         favorites: favoriteItems.length,
       },
     }),
-    [user?.uid, username, displayName, uwVerified, userListings.length, favoriteItems.length]
+    [
+      user?.uid,
+      username,
+      displayName,
+      uwVerified,
+      pronouns,
+      userListings.length,
+      favoriteItems.length,
+    ]
   );
 
   const [tab, setTab] = useState<'listings' | 'favorites'>('listings');
@@ -133,6 +143,7 @@ export default function ProfileScreen() {
       showHandle={false}
       collapseProgress={collapseProgress as any}
       phoneNumber={phone ?? undefined}
+      pronouns={pronouns ?? undefined}
       photoURL={user?.photoURL ?? null}
     />
   );
@@ -289,6 +300,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!user?.uid) {
       setPhone(null);
+      setPronouns(null);
       return;
     }
     const userRef = doc(db, 'users', user.uid);
@@ -296,11 +308,14 @@ export default function ProfileScreen() {
       userRef,
       (snap) => {
         if (snap.exists()) {
-          const data = snap.data() as { phone?: string; phoneNumber?: string };
+          const data = snap.data() as { phone?: string; phoneNumber?: string; pronouns?: string };
           const value = (data.phoneNumber ?? data.phone ?? '').trim();
+          const pronounValue = typeof data.pronouns === 'string' ? data.pronouns.trim() : '';
           setPhone(value || null);
+          setPronouns(pronounValue || null);
         } else {
           setPhone(null);
+          setPronouns(null);
         }
       },
       (err) => {

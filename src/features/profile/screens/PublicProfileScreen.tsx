@@ -31,6 +31,7 @@ type ProfileDoc = {
   phone?: string | null;
   email?: string;
   isPrivate?: boolean;
+  pronouns?: string | null;
 };
 
 export default function PublicProfileScreen() {
@@ -79,7 +80,8 @@ export default function PublicProfileScreen() {
         } else {
           const data = snap.data() as ProfileDoc;
           const phoneNumber = (data.phoneNumber ?? data.phone ?? '')?.trim();
-          setProfile({ ...data, phoneNumber: phoneNumber || null });
+          const pronouns = typeof data.pronouns === 'string' ? data.pronouns.trim() : '';
+          setProfile({ ...data, phoneNumber: phoneNumber || null, pronouns: pronouns || null });
           setProfileError(null);
         }
         setProfileLoading(false);
@@ -169,7 +171,7 @@ export default function PublicProfileScreen() {
         showStats={!hideDetails}
         showHandle={false}
         phoneNumber={hideDetails ? null : profile?.phoneNumber ?? null}
-        photoURL={profile?.photoURL ?? null}
+        pronouns={hideDetails ? null : profile?.pronouns ?? null}
         variant="full"
       />
 
