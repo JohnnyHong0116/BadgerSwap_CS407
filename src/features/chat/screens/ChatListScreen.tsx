@@ -62,6 +62,7 @@ export default function ChatListScreen() {
 
   const { user } = useAuth();
   const openSwipeRef = useRef<Swipeable | null>(null);
+  const [isSwipeOpen, setIsSwipeOpen] = useState(false);
 
   // Raw conversation list from Firestore
   const [conversations, setConversations] = useState<any[]>([]);
@@ -149,6 +150,13 @@ export default function ChatListScreen() {
 
 
 
+  const closeSwipeRow = () => {
+    if (openSwipeRef.current) {
+      openSwipeRef.current.close();
+      setIsSwipeOpen(false);
+    }
+  };
+
   const handleToggleRead = async (item: any) => {
     if (!user?.uid) return;
     try {
@@ -156,9 +164,7 @@ export default function ChatListScreen() {
       const next = item.unreadCount > 0 ? 0 : 1;
       await updateDoc(threadRef, { [`unread.${user.uid}`]: next });
       // Close any open swipe row after toggling read state
-      if (openSwipeRef.current) {
-        openSwipeRef.current.close();
-      }
+      closeSwipeRow();
     } catch (err) {
       console.error('Failed to toggle read state for thread', err);
     }
@@ -183,11 +189,6 @@ export default function ChatListScreen() {
   };
 
   const handleDelete = (item: any) => {
-    const closeRow = () => {
-      if (openSwipeRef.current) {
-        openSwipeRef.current.close();
-      }
-    };
     Alert.alert(
       'Delete conversation?',
       'This will clear the entire chat history for this thread.',
@@ -195,14 +196,14 @@ export default function ChatListScreen() {
         {
           text: 'Cancel',
           style: 'cancel',
-          onPress: closeRow,
+          onPress: closeSwipeRow,
         },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
             executeDelete(item);
-            closeRow();
+            closeSwipeRow();
           },
         },
       ]
@@ -240,10 +241,12 @@ export default function ChatListScreen() {
             openSwipeRef.current.close();
           }
           openSwipeRef.current = rowSwipeRef;
+          setIsSwipeOpen(true);
         }}
         onSwipeableClose={() => {
           if (openSwipeRef.current === rowSwipeRef) {
             openSwipeRef.current = null;
+            setIsSwipeOpen(false);
           }
         }}
       >
@@ -302,7 +305,15 @@ export default function ChatListScreen() {
    *  UI RENDER
    * ====================================================================== */
   return (
-      <GestureHandlerRootView style={styles.container}>
+      <GestureHandlerRootView
+        style={styles.container}
+        onStartShouldSetResponderCapture={() => {
+          if (isSwipeOpen) {
+            closeSwipeRow();
+          }
+          return false;
+        }}
+      >
 
         {/* ================================================================
        *  Search bar
@@ -384,7 +395,6 @@ export default function ChatListScreen() {
               </Animated.ScrollView>
             </View>
         )}
-
       </GestureHandlerRootView>
   );
 }
