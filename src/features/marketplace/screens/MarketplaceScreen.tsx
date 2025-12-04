@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Keyboard,
   StyleSheet,
   Text,
   TextInput,
@@ -17,11 +18,15 @@ import ItemListCard from '../components/ItemListCard';
 import type { Category, Item } from '../types';
 import { useListings } from '../useListings';
 
+type HistoryEntry = { id: string; query: string };
+
 export default function MarketplaceScreen() {
   const [searchText, setSearchText] = useState('');
   const [selected, setSelected] = useState<'all' | Category>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [debouncedQ, setDebouncedQ] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user } = useAuth();
@@ -76,22 +81,79 @@ export default function MarketplaceScreen() {
   };
 
   const data: Item[] = useMemo(() => items, [items]);
+  const addHistory = (query: string) => {
+    if (!query.trim()) return;
+    setHistory((prev) => {
+      const existing = prev.filter((entry) => entry.query !== query.trim());
+      const updated = [{ id: Date.now().toString(), query: query.trim() }, ...existing];
+      return updated.slice(0, 5);
+    });
+  };
+  const handleSubmitSearch = () => {
+    addHistory(searchText);
+    setShowHistory(false);
+  };
+  const handleUseHistory = (entry: HistoryEntry) => {
+    setSearchText(entry.query);
+    setDebouncedQ(entry.query.toLowerCase());
+    setShowHistory(false);
+  };
+  const handleRemoveHistory = (entry: HistoryEntry) => {
+    setHistory((prev) => prev.filter((item) => item.id !== entry.id));
+  };
+
+  const dismissSearchState = () => {
+    setShowHistory(false);
+    Keyboard.dismiss();
+  };
 
   return (
     <View style={styles.container}>
+      {showHistory && history.length > 0 && (
+        <TouchableOpacity
+          style={styles.historyBackdrop}
+          activeOpacity={1}
+          onPress={dismissSearchState}
+        />
+      )}
       <View style={styles.header}>
-        <View style={styles.search}>
-          <Feather name="search" size={20} color="#9CA3AF" />
-          <TextInput
-            style={styles.input}
-            placeholder="Search items..."
-            placeholderTextColor="#9CA3AF"
-            value={searchText}
-            onChangeText={onChangeQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-            clearButtonMode="while-editing"
-          />
+        <View style={styles.searchWrapper}>
+          <View style={styles.search}>
+            <Feather name="search" size={20} color="#9CA3AF" />
+            <TextInput
+              style={styles.input}
+              placeholder="Search items..."
+              placeholderTextColor="#9CA3AF"
+              value={searchText}
+              onChangeText={onChangeQuery}
+              onFocus={() => setShowHistory(true)}
+              onSubmitEditing={handleSubmitSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+          {showHistory && history.length > 0 && (
+            <View style={styles.historyDropdown} pointerEvents="auto">
+              {history.map((entry) => (
+                <View key={entry.id} style={styles.historyItem}>
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() => handleUseHistory(entry)}
+                  >
+                    <Text style={styles.historyText}>{entry.query}</Text>
+                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.historyDeleteHitSlop}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => handleRemoveHistory(entry)}
+                >
+                  <Feather name="x" size={14} color="#9CA3AF" />
+                </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <FilterBar selected={selected} onSelect={setSelected} />
@@ -177,13 +239,18 @@ export default function MarketplaceScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.background, position: 'relative' },
   header: {
     backgroundColor: COLORS.white,
     paddingTop: 16,
-    paddingBottom: 10,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  searchWrapper: {
+    marginHorizontal: 16,
+    position: 'relative',
+    zIndex: 20,
   },
   search: {
     flexDirection: 'row',
@@ -192,7 +259,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginHorizontal: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -201,6 +267,46 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 16,
     color: '#374151',
+  },
+  historyDropdown: {
+    position: 'absolute',
+    top: '100%',
+    marginTop: 6,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  historyBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 5,
+  },
+  historyText: {
+    color: '#374151',
+    fontSize: 14,
+  },
+  historyDeleteHitSlop: {
+    padding: 6,
+    marginLeft: 8,
   },
   resultCount: { color: '#6B7280', fontSize: 12 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
