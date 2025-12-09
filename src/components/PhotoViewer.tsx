@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import { COLORS } from '../theme/colors';
@@ -34,6 +34,7 @@ export default function PhotoViewer({
   onClose,
   watermarkTag,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const listRef = useRef<Animated.FlatList<string>>(null);
   const scrollX = useRef(new Animated.Value(initialIndex * width)).current;
@@ -127,7 +128,7 @@ export default function PhotoViewer({
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <SafeAreaView style={styles.chrome}>
+        <SafeAreaView style={[styles.chrome, { paddingTop: insets.top + 16 }]}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityLabel="Close">
             <Feather name="x" size={24} color={COLORS.white} />
           </TouchableOpacity>
@@ -195,7 +196,7 @@ export default function PhotoViewer({
         />
 
         {images.length > 1 && (
-          <View style={styles.dotRow}>
+          <View style={[styles.dotRow, { bottom: Math.max(40, insets.bottom + 16) }]}>
             {images.map((_, i) => {
               const inputRange = [(i - 1) * width, i * width, (i + 1) * width];
               const dotWidth = scrollX.interpolate({
